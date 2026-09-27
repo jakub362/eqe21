@@ -23,7 +23,7 @@ Usage:
     python3 skjyt.py --replay out.cast     play it back
 
 Render modes, by how many source pixels fit in one character cell:
-    braille  8 pixels (2x4). The most a terminal can hold. No colour.
+    braille  8 pixels (2x4). The most a terminal can hold. One colour a cell.
     quad     4 pixels (2x2). Colour, two per cell, quadrant glyphs.
     blocks   2 pixels (1x2). Colour above and below, half-block.
     squares  1 pixel. Solid coloured block.
@@ -472,7 +472,7 @@ class Settings:
         bits = [self.mode, "%dfps" % self.fps, "%d cells" % self.cells]
         if self.cut() is not None:
             bits.append("cut %d" % self.threshold)
-        if self.dither and self.mode in ("ascii", "braille"):
+        if self.dither and self.mode == "ascii":
             bits.append("dither")
         if self.depth == "256":
             bits.append("256col")
@@ -866,7 +866,9 @@ class Clock:
             # Back to normal speed: the sound can rejoin.
             try:
                 self.silenced.seek(max(0.0, here - self.latency))
-                self.silenced.resume()
+                if not self.paused:
+                    # Paused picture, paused sound: toggle() resumes both.
+                    self.silenced.resume()
                 self.sound = self.silenced
                 self.silenced = None
                 self.audio_dropped = False
@@ -1224,6 +1226,17 @@ class Keys:
         try:
             fcntl.fcntl(0, fcntl.F_SETFL, flags | os.O_NONBLOCK)
             data = os.read(0, 64)
+            # An arrow is three bytes and can arrive split (ssh, a slow
+            # link). Read a lone ESC or ESC [ as it stands and the '['
+            # turns into the subtitle key. Give the rest a moment.
+            deadline = time.monotonic() + 0.05
+            while self._incomplete(data) and time.monotonic() < deadline:
+                if not _select.select([0], [], [], 0.01)[0]:
+                    continue
+                try:
+                    data += os.read(0, 64)
+                except (BlockingIOError, InterruptedError):
+                    pass
         except (BlockingIOError, InterruptedError, OSError):
             data = b""
         finally:
@@ -1232,6 +1245,19 @@ class Keys:
             except Exception:                          # stdout shares it
                 pass
         return data.decode("utf-8", "replace")
+
+    @staticmethod
+    def _incomplete(data):
+        """True if data ends part-way through an escape sequence."""
+        tail = data[data.rfind(b"\x1b"):] if b"\x1b" in data else b""
+        if not tail:
+            return False
+        if tail == b"\x1b":
+            return True
+        if tail[1:2] not in (b"[", b"O"):
+            return False
+        body = tail[2:]
+        return not any(chr(c).isalpha() or c == ord("~") for c in body)
 
     def _parse(self, raw):
         keys = []
@@ -1915,7 +1941,7 @@ def filter_chain(width, height, fps, mode, cfg):
     if cfg.contrast:
         parts.append("eq=contrast=%.2f" % cfg.contrast)
 
-    if mode in ("ascii", "braille"):
+    if mode == "ascii":
         if cfg.dither:
             parts.append("format=monob")     # swscale dithers to 1-bit
         parts.append("format=gray")
@@ -1942,7 +1968,7 @@ class Decoder:
         self.mode = mode
         self.cfg = cfg
         self.duration = duration or 0.0
-        self.channels = 1 if mode in ("ascii", "braille") else 3
+        self.channels = 1 if mode == "ascii" else 3
         self.frame_bytes = width * height * self.channels
         self.path = os.path.join(workdir, "frames.raw")
         self.pix = "gray" if self.channels == 1 else "rgb24"
@@ -2117,6 +2143,8 @@ class Decoder:
 def cache_name(key, width, height, fps, mode, cfg):
     safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in str(key))[:60]
     extra = "dither" if (mode == "ascii" and cfg.dither) else "q%d" % cfg.quant
+    if mode == "braille":
+        extra = "rgb" + extra     # was greyscale once: never reuse those
     thr = "t%s" % (cfg.cut() if cfg.cut() is not None else "n")
     return "%s-%dx%d-%dfps-%s-%s-%s-a%.2f.raw" % (
         safe, width, height, fps, mode, extra, thr, cfg.cell_aspect)
@@ -2440,11 +2468,21 @@ def _render_quad(buf, width, height, depth):
     return lines
 
 
-def _render_braille(buf, width, height, table, depth):
-    """Eight pixels per cell. The most detail available in a terminal.
+_LUMA_R = bytes(v * 77 >> 8 for v in range(256))
+_LUMA_G = bytes(v * 150 >> 8 for v in range(256))
+_LUMA_B = bytes(v * 29 >> 8 for v in range(256))
 
-    One colour per cell, so it trades colour fidelity for resolution -
-    which is the right trade for line art, text and silhouette animation.
+
+def _render_braille(buf, width, height, table, depth):
+    """Eight pixels per cell, in colour. The most detail a terminal holds.
+
+    The same trick btop++ uses: a braille cell can only carry one
+    foreground colour, so each cell splits its own eight pixels at the
+    midpoint of its brightest and darkest, lights the bright ones and
+    paints them their average colour. Deciding per cell rather than
+    against one global cut keeps edges in dark and bright scenes alike;
+    a flat cell is drawn full (or blank if it is black) so solid areas
+    keep their colour instead of dissolving into dots.
     """
     lines = []
     grey = len(buf) == width * height
@@ -2457,36 +2495,72 @@ def _render_braille(buf, width, height, table, depth):
             break
     if cut is None:
         cut = 128
+    # (byte offset within the cell, dot bit) for the eight pixels
+    dots = [(dy * row + dx * step, BRAILLE_BITS[dx][dy])
+            for dx in (0, 1) for dy in (0, 1, 2, 3)]
+    bitv = [bit for _, bit in dots]
+    # Per-pixel planes, built once per frame at C speed rather than
+    # indexed three bytes at a time inside the cell loop.
+    poffs = [dy * width + dx for dx in (0, 1) for dy in (0, 1, 2, 3)]
+    if not grey:
+        if not isinstance(buf, (bytes, bytearray)):
+            buf = bytes(buf)                 # translate() needs real bytes
+        reds, greens, blues = buf[0::3], buf[1::3], buf[2::3]
+        # Luma for the whole frame without a Python loop: weight each
+        # plane through a lookup table, then add the planes as big
+        # integers. Each weighted byte is at most 76 + 149 + 28 = 253
+        # summed, so no pixel ever carries into its neighbour.
+        size = len(reds)
+        luma = (int.from_bytes(reds.translate(_LUMA_R), "big")
+                + int.from_bytes(greens.translate(_LUMA_G), "big")
+                + int.from_bytes(blues.translate(_LUMA_B), "big")
+                ).to_bytes(size, "big")
+    code = colour_code
 
     for cy in range(0, height - 3, 4):
         out = []
+        add = out.append
         prev = None
         base = cy * row
         for cx in range(0, width - 1, 2):
+            origin = base + cx * step
+            if grey:
+                cell = [(buf[origin + off], bit) for off, bit in dots]
+                hi = max(cell)[0]
+                lo = min(cell)[0]
+                if hi < cut:
+                    add(" ")                 # too dark to draw anything
+                    continue
+                mid = -1 if hi - lo < 12 else (hi + lo) >> 1
+                bits = 0
+                for lum, bit in cell:
+                    if lum > mid:
+                        bits |= bit
+                add(chr(0x2800 + bits))
+                continue
+            # Hot loop: this runs for every cell of every frame.
+            at = cy * width + cx
+            idx = [at + off for off in poffs]
+            lums = [luma[i] for i in idx]
+            hi = max(lums)
+            if hi < cut:
+                add(" ")                     # too dark to draw anything
+                continue
+            lo = min(lums)
+            mid = -1 if hi - lo < 12 else (hi + lo) >> 1
             bits = 0
-            lit = []
-            for dx in (0, 1):
-                for dy in (0, 1, 2, 3):
-                    i = base + dy * row + (cx + dx) * step
-                    if grey:
-                        lum = buf[i]
-                        pixel = (lum, lum, lum)
-                    else:
-                        pixel = (buf[i], buf[i + 1], buf[i + 2])
-                        lum = (pixel[0] * 299 + pixel[1] * 587
-                               + pixel[2] * 114) // 1000
-                    if lum >= cut:
-                        bits |= BRAILLE_BITS[dx][dy]
-                        lit.append(pixel)
-            if bits and not grey:
-                colour = (sum(p[0] for p in lit) // len(lit),
-                          sum(p[1] for p in lit) // len(lit),
-                          sum(p[2] for p in lit) // len(lit))
-                if colour != prev:
-                    out.append(colour_code(colour[0], colour[1], colour[2], depth))
-                    prev = colour
-            out.append(chr(0x2800 + bits))
-        out.append(OFF)
+            for k in range(8):
+                if lums[k] > mid:
+                    bits |= bitv[k]
+            # The brightest dot's colour, as quad does: cheaper than an
+            # average and it keeps highlights saturated.
+            i = idx[lums.index(hi)]
+            colour = (reds[i], greens[i], blues[i])
+            if colour != prev:
+                add(code(colour[0], colour[1], colour[2], depth))
+                prev = colour
+            add(chr(0x2800 + bits))
+        add(OFF)
         lines.append("".join(out))
     return lines
 
@@ -2650,7 +2724,6 @@ def play(decoder, media, cfg, cols, start_at=0.0, recorder=None, queue_info="",
     result is one of end / quit / next / prev / resize."""
     fps = cfg.fps
     mode = cfg.mode
-    frame_bytes = decoder.frame_bytes
     table = ascii_table(cfg.cut())
 
     sound = None
@@ -3056,7 +3129,7 @@ def replay(path):
 def measure(mode, cfg, cells_across=60, cells_down=40, frames=16):
     """Render synthetic frames. Returns (ms, diff bytes, full bytes, cells)."""
     width, height = pixel_size(mode, cells_across, cells_down)
-    channels = 1 if mode in ("ascii", "braille") else 3
+    channels = 1 if mode == "ascii" else 3
     base = bytearray(width * height * channels)
     for i in range(len(base)):
         base[i] = (i * 7) % 256
@@ -3713,12 +3786,12 @@ PRESETS = {
                 "for double the detail. Costs more Python time.",
     },
     "sharpest": {
-        "mode": "braille", "fps": 15, "dither": True,
+        "mode": "braille", "fps": 15, "dither": False,
         "quality": 240, "thumbs": True, "depth": "256",
         "scaler": "lanczos", "sharpen": 1.2,
         "cells": 2000 if not HAVE_SUBPROCESS else 9000,
         "note": "braille: eight pixels a cell, the most a terminal can hold, "
-                "but no colour. Best there is for line art and silhouettes.",
+                "one colour per cell. Best for line art, text and edges.",
     },
 }
 
@@ -4322,7 +4395,7 @@ def prefetch_thumbs(entries, cfg, workers=6):
 
 def thumb_pixels(entry, mode, cfg):
     """Returns raw pixel bytes for one thumbnail, or None."""
-    channels = 1 if mode in ("ascii", "braille") else 3
+    channels = 1 if mode == "ascii" else 3
     width, height = pixel_size(mode, THUMB_W, THUMB_H)
     want = width * height * channels
 
@@ -4347,7 +4420,7 @@ def thumb_pixels(entry, mode, cfg):
         parts.append("scale=%d:%d:force_original_aspect_ratio=decrease:flags=%s"
                      % (width, height, cfg.scaler))
         parts.append("pad=%d:%d:(ow-iw)/2:(oh-ih)/2" % (width, height))
-        if mode in ("ascii", "braille"):
+        if mode == "ascii":
             parts.append("format=gray")
 
         out = os.path.join(tmp, "t.raw")
@@ -4426,7 +4499,7 @@ def entry_caption(entry, width, extra=""):
 # ==========================================================================
 
 MODE_BLURB = {
-    "braille": "8 px per cell, no colour, sharpest",
+    "braille": "8 px per cell, colour, sharpest",
     "quad":    "4 px per cell, colour",
     "blocks":  "2 px per cell, colour",
     "squares": "1 px per cell, solid colour",
@@ -4469,7 +4542,7 @@ def settings_screen(cfg, cols, state=None):
         print(row("5", "quality", "%dp" % cfg.quality))
         print(row("6", "results", str(cfg.results)))
         print(row("7", "detail", "%d cells  %slower = smoother%s" % (cfg.cells, DIM, OFF)))
-        if cfg.mode in ("ascii", "braille"):
+        if cfg.mode == "ascii":
             print(row("8", "colour step", "%sn/a, %s has no colour%s"
                       % (DIM, cfg.mode, OFF)))
         else:
@@ -4478,10 +4551,10 @@ def settings_screen(cfg, cols, state=None):
         print(row("9", "audio backend", cfg.backend))
         print(row("a", "cell aspect",
                   "%.2f  %sheight / width%s" % (cfg.cell_aspect, DIM, OFF)))
-        if cfg.mode in ("ascii", "braille"):
+        if cfg.mode == "ascii":
             print(row("d", "dither", "on" if cfg.dither else "off"))
         else:
-            print(row("d", "dither", "%sascii and braille only%s" % (DIM, OFF)))
+            print(row("d", "dither", "%sascii only%s" % (DIM, OFF)))
         print(row("s", "subtitles", "on" if cfg.subs else "off"))
         print(row("r", "resume", "on" if cfg.resume else "off"))
         print(row("c", "cache", "%d MB limit, %.0f MB used"
@@ -4538,7 +4611,7 @@ def settings_screen(cfg, cols, state=None):
             value = ask("cells 300-40000 (phone 2400, desktop 12000) \u203a ")
             if value and value.isdigit():
                 cfg.cells = int(value)
-        elif pick == "8" and cfg.mode not in ("ascii", "braille"):
+        elif pick == "8" and cfg.mode != "ascii":
             value = ask("colour step 1-64 (1 exact, 24 fast) \u203a ")
             if value and value.isdigit():
                 cfg.quant = int(value)
@@ -4550,7 +4623,7 @@ def settings_screen(cfg, cols, state=None):
                 cfg.cell_aspect = float(value)
             except (TypeError, ValueError):
                 pass
-        elif pick == "d" and cfg.mode in ("ascii", "braille"):
+        elif pick == "d" and cfg.mode == "ascii":
             cfg.dither = not cfg.dither
         elif pick == "s":
             cfg.subs = not cfg.subs
@@ -5261,7 +5334,11 @@ def cmd_config(rest, cfg):
         current = getattr(cfg, key)
         try:
             if isinstance(current, bool):
-                value = raw.lower() in ("1", "true", "yes", "on")
+                word = raw.lower()
+                if word not in ("1", "true", "yes", "on",
+                                "0", "false", "no", "off"):
+                    raise ValueError(raw)
+                value = word in ("1", "true", "yes", "on")
             elif isinstance(current, int) or (current is None and raw.isdigit()):
                 value = int(raw)
             elif isinstance(current, float):
@@ -5278,6 +5355,12 @@ def cmd_config(rest, cfg):
         if problem:
             die("not saved - " + problem)
         print("%s = %s" % (key, getattr(cfg, key)))
+        return
+    if action == "get" and len(rest) >= 2:
+        key = rest[1]
+        if key not in Settings.FIELDS:
+            die("unknown setting %r. try: %s" % (key, ", ".join(Settings.FIELDS)))
+        print(getattr(cfg, key))
         return
     for key in Settings.FIELDS:
         print("  %-12s %s" % (key, getattr(cfg, key)))
