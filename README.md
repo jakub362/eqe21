@@ -82,7 +82,7 @@ how many, and that is the whole quality story:
 
 | mode | pixels per cell | colour | ms/frame | bytes/frame |
 |---|---|---|---|---|
-| `braille` | 8 (2×4) | none | 3.31 | 1148 |
+| `braille` | 8 (2×4) | 1 per cell | 5.2 | 18906 |
 | `quad` | 4 (2×2) | 2 per cell | 3.33 | 34305 |
 | `blocks` | 2 (1×2) | 2 per cell | 1.89 | 34360 |
 | `squares` | 1 | 1 per cell | 1.04 | 16401 |
@@ -95,12 +95,15 @@ Two things fall out of that table.
 that with Python time, not bandwidth, so it is the right default on a
 desktop and a judgement call on a phone.
 
-**`braille` is the sharpest thing available and nearly the cheapest.** Eight
-pixels a cell, and because it spends no colour the escape sequences almost
-vanish. On a real clip it used 415 bytes a frame where `ascii` used 630 —
-cheaper *and* eight times the resolution. The catch is no colour at all, so
-it is for line art, text, and silhouette animation. For Bad Apple it is
-strictly better than `ascii`.
+**`braille` is the sharpest thing available.** Eight pixels a cell, in
+colour, the way btop++ draws its graphs: each cell splits its own eight
+pixels at the midpoint of its brightest and darkest, lights the bright ones,
+and paints them the brightest one's colour. Deciding per cell rather than
+against one global cut keeps edges in dark scenes and bright ones alike.
+A cell has one colour, so it is best for line art, text and edges; for
+smooth gradients `quad` still looks fuller, since braille dots leave gaps.
+Colour costs bytes, about half of what `quad` sends. Dither is ascii-only
+now, since a 1-bit dither cannot carry colour.
 
 Four presets: `performance` (ascii), `balanced` (blocks), `quality` (quad),
 `sharpest` (braille).
