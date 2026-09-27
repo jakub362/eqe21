@@ -299,10 +299,16 @@ def die(msg):
 
 
 def run_ffmpeg(args):
-    """The one place that knows how to invoke ffmpeg on both worlds."""
+    """The one place that knows how to invoke ffmpeg on both worlds.
+
+    -nostdin matters: without it ffmpeg reads the terminal for its own
+    interactive commands, swallowing the keystrokes meant for playback
+    (and a 'q' would quietly stop the decode)."""
+    args = ["-nostdin"] + list(args)
     if HAVE_SUBPROCESS:
         try:
-            return subprocess.call(["ffmpeg"] + args)
+            return subprocess.call(["ffmpeg"] + args,
+                                   stdin=subprocess.DEVNULL)
         except FileNotFoundError:
             die("ffmpeg not found on PATH")
     return os.system("ffmpeg " + " ".join('"%s"' % a for a in args))
@@ -1170,8 +1176,39 @@ class Keys:
             self.saw_any = True
         return self._parse(raw) if raw else []
 
+    # Windows console: arrows and other special keys arrive from getwch()
+    # as a '\x00' or '\xe0' prefix followed by a scan code.
+    WIN_SCAN = {"H": "up", "P": "down", "M": "right", "K": "left"}
+
+    def _read_windows(self):
+        """msvcrt polling. kbhit() never blocks, and getwch() only runs
+        when a key is already waiting, so the video never stalls."""
+        try:
+            import msvcrt
+        except Exception:
+            return ""
+        out = []
+        try:
+            while msvcrt.kbhit() and len(out) < 64:
+                ch = msvcrt.getwch()
+                if ch in ("\x00", "\xe0"):
+                    code = msvcrt.getwch()
+                    arrow = self.WIN_SCAN.get(code)
+                    if arrow:
+                        # Hand it to _parse as the ANSI sequence it knows.
+                        out.append("\x1b[" + {"up": "A", "down": "B",
+                                               "right": "C",
+                                               "left": "D"}[arrow])
+                    continue
+                out.append(ch)
+        except Exception:
+            pass
+        return "".join(out)
+
     def _read_here(self):
-        if IS_WINDOWS or not os.isatty(0):
+        if IS_WINDOWS:
+            return self._read_windows()
+        if not os.isatty(0):
             return ""
         try:
             import select as _select
@@ -1766,7 +1803,7 @@ def has_audio(path):
         out = subprocess.check_output(
             ["ffprobe", "-v", "error", "-select_streams", "a",
              "-show_entries", "stream=codec_type", "-of", "csv=p=0", path],
-            stderr=subprocess.DEVNULL)
+            stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
         return b"audio" in out
     except Exception:
         return True
@@ -1778,7 +1815,7 @@ def probe_duration(path):
     try:
         out = subprocess.check_output(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-             "-of", "default=nw=1:nk=1", path], stderr=subprocess.DEVNULL)
+             "-of", "default=nw=1:nk=1", path], stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
         return float(out.strip())
     except Exception:
         return 0.0
@@ -1932,12 +1969,14 @@ class Decoder:
 
     def start(self):
         if HAVE_SUBPROCESS:
-            args = ["ffmpeg", "-v", "error", "-y", "-i", self.src, "-an",
+            args = ["ffmpeg", "-nostdin", "-v", "error", "-y",
+                    "-i", self.src, "-an",
                     "-vf", self.vf, "-f", "rawvideo", "-pix_fmt", self.pix,
                     self.path]
             try:
                 self.proc = subprocess.Popen(
-                    args, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+                    args, stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             except FileNotFoundError:
                 die("ffmpeg not found on PATH")
         else:
@@ -4108,10 +4147,10 @@ def keys_check():
                   % bool(fcntl.fcntl(1, fcntl.F_GETFL) & os.O_NONBLOCK))
         except Exception:
             pass
-    pump = input_pump()
-    print("  reader     : %s, alive=%s" % (pump.method, pump.alive()))
-    if pump.error:
-        print("  reader err : %s" % pump.error)
+    # No InputPump here: a second reader blocked on stdin would race the
+    # main-thread poll below and eat half the keys it is meant to show.
+    print("  reader     : %s, main-thread poll"
+          % ("msvcrt" if IS_WINDOWS else "select + os.read"))
 
     if not ok:
         print(WARN + "\n  no key control here. ctrl-c still stops a video."
@@ -4140,7 +4179,6 @@ def keys_check():
         keys.restore()
     if not seen:
         print(WARN + "  nothing arrived from the keyboard." + OFF)
-        print("  reader still alive: %s" % pump.alive())
         print(DIM + "  This terminal will not give a running program its "
                     "keystrokes." + OFF)
         print(DIM + "  Checking ctrl-c still reaches us - press it within "
