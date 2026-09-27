@@ -52,8 +52,8 @@ commands at a prompt.
     p pause   q quit   + - speed   f 2x   s 30 seek   n next
 
 `--control auto` (the default) uses keys, and switches itself to the typed
-prompt for the next video if a whole one plays without a single keystroke
-arriving. `--limit SECONDS` stops a video with no input at all.
+prompt for the next video if you had to press ctrl-c during one and not a
+single keystroke had arrived. `--limit SECONDS` stops a video with no input at all.
 
 Everything else lives in the settings screen.
 """
@@ -139,6 +139,7 @@ DEFAULT_CELLS = 12000 if HAVE_SUBPROCESS else 2400
 
 RESIZED = [False]
 KEYS_SEEN = [False]
+CTRL_C_UNKEYED = [False]   # ctrl-c during a video that never got a key
 LIMIT = [0.0]          # --limit: stop after N seconds, no keyboard needed
 
 # Commands typed at a line prompt while the picture renders on another
@@ -495,13 +496,19 @@ def terminal_id():
 def learned_mode(state):
     blob = state.get("input_mode")
     if isinstance(blob, dict):
-        return blob.get("mode") if blob.get("where") == terminal_id() else None
+        if blob.get("where") != terminal_id():
+            return None
+        if blob.get("mode") == "line" and blob.get("v") != 2:
+            # Learned by older versions from nothing more than a few
+            # seconds without a keypress - often wrong. Start from keys.
+            return None
+        return blob.get("mode")
     return None                    # old flat value: ignore, it has no context
 
 
 def learn_mode(state, mode):
     state["input_mode"] = {"where": terminal_id(), "mode": mode,
-                           "when": time.time()}
+                           "when": time.time(), "v": 2}
     save_state(state)
 
 
@@ -2761,6 +2768,7 @@ def play(decoder, media, cfg, cols, start_at=0.0, recorder=None, queue_info="",
     speed_note = False
     told_speed = False
     hint_checked = False
+    doubt = None
     RESIZED[0] = False
 
     title_room = cols - (len(queue_info) + 4 if queue_info else 2)
@@ -2812,6 +2820,11 @@ def play(decoder, media, cfg, cols, start_at=0.0, recorder=None, queue_info="",
 
     def on_sigint(_sig, _frame):
         interrupted[0] = True
+        if not keys.saw_any:
+            # Reaching for ctrl-c without a single key getting through is
+            # the real sign keys do not work here. Silence is not: most
+            # of the time it just means nobody has pressed anything.
+            CTRL_C_UNKEYED[0] = True
 
     # Only the main thread may install handlers. In typed-command mode
     # play() runs on a worker, so there is simply no handler here - and the
@@ -2851,6 +2864,9 @@ def play(decoder, media, cfg, cols, start_at=0.0, recorder=None, queue_info="",
                 KEYS_SEEN[0] = True
                 if not learned_keys[0]:
                     learned_keys[0] = True
+                if doubt and hint == doubt:
+                    hint = base_hint         # they do work: drop the doubt
+                    last_bar = -1
             for key in pressed + take_commands():
                 if key.startswith("seek:") or key.startswith("speed:"):
                     what, _, value = key.partition(":")
@@ -3031,14 +3047,16 @@ def play(decoder, media, cfg, cols, start_at=0.0, recorder=None, queue_info="",
                 if recorder:
                     recorder.write(chunk)
 
-            # If nothing has ever arrived from the keyboard, stop showing a
-            # hint that promises keys work. Say what actually does.
+            # Nothing from the keyboard yet usually means nothing has been
+            # pressed, so don't claim keys are broken - just make sure the
+            # way out is on screen in case they are. The first key that
+            # arrives puts the normal hint back.
             if (use_keys and not hint_checked and painted > fps * 3
                     and not keys.saw_any):
                 hint_checked = True
-                hint = (" keys are not reaching skjyt \u00b7 ctrl-c "
-                        + ("opens a menu" if cfg.ctrl_c_menu else "stops it"))
-                last_bar = -1
+                if not cfg.ctrl_c_menu and hint == base_hint:
+                    doubt = hint = base_hint + "  \u00b7 ctrl-c stops it"
+                    last_bar = -1
 
             painted += 1
             window_frames += 1
@@ -5222,9 +5240,12 @@ def run_one(item, cfg, state, recorder, queue_info=""):
                 if saw_keys and learned_mode(state) == "line":
                     # Keys work here after all: stop forcing the prompt.
                     learn_mode(state, "keys")
-                if painted > cfg.fps * 3 and not keys_ever_worked():
-                    # Learned, not guessed: this terminal gave a running
-                    # program nothing. Use the typed prompt next time.
+                if (cfg.control == "auto" and CTRL_C_UNKEYED[0]
+                        and not keys_ever_worked()):
+                    # Learned, not guessed: they had to reach for ctrl-c
+                    # and not one key ever arrived. Watching without
+                    # pressing anything proves nothing, so that alone no
+                    # longer flips a working terminal to typed mode.
                     if learned_mode(state) != "line":
                         learn_mode(state, "line")
                         status("keys never arrived - switching to the typed "
