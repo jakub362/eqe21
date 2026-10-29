@@ -217,13 +217,19 @@ add_copr() {
     record repos-added.txt "copr:$1"; note "COPR $1"
   else warn "could not enable COPR $1"; fi
 }
-add_copr byte0/hyprland
+want hyprland && add_copr byte0/hyprland
 # liuyang/deepin-dde has no startdde, so its control center can never resolve.
 # shrisha/deepin-treeland carries the whole modern DDE: startdde, dde-session,
 # dde-shell, dde-control-center and the treeland Wayland compositor.
 sudo dnf -y copr remove liuyang/deepin-dde >/dev/null 2>&1 \
   && note "dropped the incomplete liuyang/deepin-dde COPR"
-add_copr shrisha/deepin-treeland
+# only when Deepin is actually wanted — otherwise a re-run would put back a
+# COPR that was deliberately removed
+if want deepin; then
+  add_copr shrisha/deepin-treeland
+else
+  note "deepin not in DESKTOPS — leaving its COPR alone"
+fi
 
 TERRA_REPO=/etc/yum.repos.d/de-testlab-terra.repo
 if [ ! -f "$TERRA_REPO" ]; then
