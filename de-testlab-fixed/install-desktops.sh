@@ -35,9 +35,10 @@ OTHER_DMS="gdm lightdm sddm lxdm xdm ddm"
 DRY=0
 
 # Desktops to install.  Delete a word to skip it, add one back to install it.
-# gnome and cinnamon are deliberately out: they pull a very large pile of
-# apps with them, and they were removed again by hand.
-DESKTOPS="${DESKTOPS:-hyprland swayfx awesome budgie deepin cosmic}"
+#   gnome, cinnamon - pull a very large pile of apps with them; removed by hand
+#   deepin          - the treeland/DDE session black-screens back to the login
+#                     manager on this machine, so it is out until that is fixed
+DESKTOPS="${DESKTOPS:-hyprland swayfx awesome budgie cosmic}"
 want() { case " $DESKTOPS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
 mkdir -p "$STATE"/{config-backup,logs} "$HOME/.local/bin" "$HOME/.local/share/wallpapers" "$HOME/Pictures/Screenshots"
