@@ -2,10 +2,12 @@
 # ══════════════════════════════════════════════════════════════════════════
 #  Desktop test lab installer  —  Fedora 44
 #
-#  Installs GNOME, Cinnamon, Budgie, Deepin/DDE (unofficial), Hyprland,
-#  AwesomeWM and SwayFX side by side, themed (Catppuccin Mocha) for the
-#  last three, and keeps the KDE Plasma login manager as the ONLY
-#  display manager (it lets you pick any session from its menu).
+#  Installs a set of desktops side by side, themed (Catppuccin Mocha) for
+#  Hyprland / SwayFX / AwesomeWM, and keeps the KDE Plasma login manager as
+#  the ONLY display manager (it lets you pick any session from its menu).
+#
+#  Which ones is up to the DESKTOPS list below, or the environment:
+#      DESKTOPS="gnome cinnamon" bash install-desktops.sh
 #
 #  Asks for your sudo password ONCE, then runs unattended.
 #
@@ -31,6 +33,12 @@ KEEP_PATH=""                         # resolved by ensure_login_manager
 PLM_PKGS="plasma-login-manager kcm-plasmalogin"
 OTHER_DMS="gdm lightdm sddm lxdm xdm ddm"
 DRY=0
+
+# Desktops to install.  Delete a word to skip it, add one back to install it.
+# gnome and cinnamon are deliberately out: they pull a very large pile of
+# apps with them, and they were removed again by hand.
+DESKTOPS="${DESKTOPS:-hyprland swayfx awesome budgie deepin cosmic}"
+want() { case " $DESKTOPS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
 mkdir -p "$STATE"/{config-backup,logs} "$HOME/.local/bin" "$HOME/.local/share/wallpapers" "$HOME/Pictures/Screenshots"
 touch "$STATE/created-files.txt"; : > "$STATE/steps.txt"
@@ -116,6 +124,7 @@ skip_flags() {                 # skip_flags <subcommand...>
 }
 INSTALL_SKIP=$(skip_flags install)
 GROUP_SKIP=$(skip_flags group install)
+note "desktops: $DESKTOPS"
 note "dnf install flags:${INSTALL_SKIP:- (none supported)}"
 note "dnf group  flags:${GROUP_SKIP:- (none supported)}"
 
@@ -249,6 +258,15 @@ avail() {
   return 0
 }
 
+pick_group() {                 # pick_group <id...> -> the first id dnf knows
+  local g
+  for g in "$@"; do
+    if dnf group info "$g" >/dev/null 2>&1; then printf '%s' "$g"; return 0; fi
+  done
+  note "none of these package groups exist here: $*" >&2
+  return 1
+}
+
 step() {                       # step <label> <dnf args...>
   local label="$1"; shift
   local flags="$INSTALL_SKIP" a n=0
@@ -291,21 +309,28 @@ COMMON=$(avail waybar wofi rofi kitty mako swaybg swayidle swaylock wlogout \
                 libnotify google-noto-sans-fonts | tr '\n' ' ')
 step "shared tools, fonts and themes" install $COMMON
 
-HYPR=$(avail hyprland hyprpaper hyprlock hypridle hyprpicker hyprcursor \
-             xdg-desktop-portal-hyprland | tr '\n' ' ')
-step "Hyprland" install $HYPR
+if want hyprland; then
+  HYPR=$(avail hyprland hyprpaper hyprlock hypridle hyprpicker hyprcursor \
+               xdg-desktop-portal-hyprland | tr '\n' ' ')
+  step "Hyprland" install $HYPR
+fi
 
-step "SwayFX" --enablerepo=de-testlab-terra --nogpgcheck install swayfx
+want swayfx && step "SwayFX" --enablerepo=de-testlab-terra --nogpgcheck install swayfx
 
-# i3lock: what de-powermenu locks with under X11 (awesome)
-AWE=$(avail awesome lua-lgi picom feh xorg-x11-server-Xorg xorg-x11-xinit \
-            xorg-x11-xinit-session xsetroot i3lock | tr '\n' ' ')
-step "AwesomeWM (+ Xorg, picom)" install $AWE
+if want awesome; then
+  # i3lock: what de-powermenu locks with under X11 (awesome)
+  AWE=$(avail awesome lua-lgi picom feh xorg-x11-server-Xorg xorg-x11-xinit \
+              xorg-x11-xinit-session xsetroot i3lock | tr '\n' ' ')
+  step "AwesomeWM (+ Xorg, picom)" install $AWE
+fi
 
-step "GNOME"    group install gnome-desktop
-step "Cinnamon" group install cinnamon-desktop
-step "Budgie"   group install budgie-desktop
+want gnome    && step "GNOME"    group install gnome-desktop
+want cinnamon && step "Cinnamon" group install cinnamon-desktop
+want budgie   && step "Budgie"   group install budgie-desktop
+want cosmic   && step "COSMIC"   group install \
+                   "$(pick_group cosmic-desktop cosmic-desktop-environment || true)"
 
+if want deepin; then
 DEEPIN=$(avail startdde dde-session dde-shell dde-control-center treeland \
                dde-daemon dde-seatd dde-appearance deepin-application-manager \
                deepin-tray-loader deepin-service-manager dde-file-manager-bridge \
@@ -313,6 +338,7 @@ DEEPIN=$(avail startdde dde-session dde-shell dde-control-center treeland \
                deepin-gtk-theme deepin-terminal deepin-wallpapers \
                deepin-sound-theme deepin-account-faces | tr '\n' ' ')
 step "Deepin / DDE (unofficial COPR, Wayland via treeland)" install $DEEPIN
+fi
 
 if [ "$DRY" != 1 ]; then
   sudo dnf -y --enablerepo=de-testlab-terra --nogpgcheck install nwg-look $INSTALL_SKIP >/dev/null 2>&1 || true
@@ -329,6 +355,7 @@ fi
 # deepin-control-center does not exist in this COPR; dde-control-center is
 # the control centre the modern DDE stack ships, and it needs startdde +
 # dde-session to be there too, which is what the other COPR was missing.
+if want deepin; then
 say "Checking the Deepin / DDE stack"
 # ask rpm, not $PATH: some of these ship units and desktop files, not binaries
 DDE_MISSING=""
@@ -353,6 +380,7 @@ if ls /usr/share/wayland-sessions /usr/share/xsessions 2>/dev/null \
     | grep -iE 'deepin|treeland' | sed 's/^/     session entry: /'
 else
   warn "no Deepin session entry found — it will not show up in the login menu"
+fi
 fi
 
 # ── 6. what did we add? ───────────────────────────────────────────────────
