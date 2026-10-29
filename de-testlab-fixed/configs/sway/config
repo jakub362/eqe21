@@ -1,0 +1,219 @@
+# ─────────────────────────────────────────────────────────────
+#  SwayFX — Catppuccin Mocha  (generated, safe to edit)
+#  SwayFX = sway + blur, shadows, rounded corners, dim
+# ─────────────────────────────────────────────────────────────
+
+set $mod   Mod4
+set $left  h
+set $down  j
+set $up    k
+set $right l
+set $term  kitty
+set $menu  wofi --show drun
+set $files de-files
+set $power de-powermenu
+
+### palette
+set $base     #1e1e2e
+set $mantle   #181825
+set $crust    #11111b
+set $surface0 #313244
+set $text     #cdd6f4
+set $subtext  #a6adc8
+set $blue     #89b4fa
+set $mauve    #cba6f7
+set $red      #f38ba8
+set $overlay  #6c7086
+
+### output
+output * bg @WALLPAPER@ fill
+output * adaptive_sync on
+
+### input
+input type:keyboard {
+    xkb_layout "@KBLAYOUT@"
+    xkb_model "@KBMODEL@"
+    repeat_delay 300
+    repeat_rate 40
+}
+input type:touchpad {
+    tap enabled
+    natural_scroll enabled
+    dwt enabled
+    middle_emulation enabled
+}
+
+### ── SwayFX eye candy ────────────────────────────────────────
+corner_radius 12
+smart_corner_radius enable
+shadows enable
+shadows_on_csd enable
+shadow_blur_radius 22
+shadow_color #0b0b12CC
+shadow_offset 0 6
+
+blur enable
+blur_xray disable
+blur_passes 3
+blur_radius 6
+blur_noise 0.02
+blur_brightness 1.0
+blur_contrast 1.05
+blur_saturation 1.1
+
+default_dim_inactive 0.05
+dim_inactive_colors.unfocused #11111b
+titlebar_separator disable
+scratchpad_minimize enable
+
+layer_effects "waybar" blur enable; shadows enable; corner_radius 14
+layer_effects "wofi"   blur enable; shadows enable; corner_radius 16
+layer_effects "notifications" blur enable; shadows enable; corner_radius 14
+
+for_window [app_id="kitty"] opacity 0.94
+for_window [app_id="Alacritty"] opacity 0.94
+for_window [app_id="thunar"] opacity 0.96
+
+### ── window look ─────────────────────────────────────────────
+default_border pixel 2
+default_floating_border pixel 2
+hide_edge_borders --i3 smart
+gaps inner 6
+gaps outer 8
+smart_gaps off
+
+# class                 border    bg        text     indicator  child_border
+client.focused          $blue     $blue     $crust   $mauve     $blue
+client.focused_inactive $surface0 $surface0 $subtext $surface0  $surface0
+client.unfocused        $surface0 $base     $overlay $surface0  $surface0
+client.urgent           $red      $red      $crust   $red       $red
+
+font pango:Noto Sans Semi-Bold 10
+
+### ── rules ───────────────────────────────────────────────────
+for_window [window_role="pop-up"] floating enable
+for_window [window_role="dialog"] floating enable
+for_window [window_type="dialog"] floating enable
+for_window [app_id="pavucontrol"] floating enable, resize set 820 620
+for_window [app_id="nm-connection-editor"] floating enable
+for_window [app_id="blueman-manager"] floating enable
+for_window [title="Open File|Save As|Choose Files"] floating enable, resize set 1000 700
+for_window [shell="xwayland"] title_format "%title [XWayland]"
+for_window [app_id="^launcher$"] floating enable, sticky enable
+
+### ── autostart ───────────────────────────────────────────────
+exec waybar -c ~/.config/waybar/config-sway.jsonc -s ~/.config/waybar/style.css
+exec mako
+exec nm-applet --indicator
+exec wl-paste --watch cliphist store
+exec /usr/libexec/polkit-kde-authentication-agent-1
+exec swayidle -w \
+    timeout 420 'swaylock -f' \
+    timeout 600 'swaymsg "output * power off"' \
+    resume 'swaymsg "output * power on"' \
+    before-sleep 'swaylock -f'
+exec_always {
+    gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+    gsettings set org.gnome.desktop.interface gtk-theme 'adw-gtk3-dark'
+    gsettings set org.gnome.desktop.interface icon-theme 'Papirus-Dark'
+    gsettings set org.gnome.desktop.interface cursor-theme 'Adwaita'
+}
+seat seat0 xcursor_theme Adwaita 24
+
+### ── keybinds ────────────────────────────────────────────────
+floating_modifier $mod normal
+
+bindsym $mod+Return exec $term
+bindsym $mod+d exec $menu
+bindsym $mod+e exec $files
+bindsym $mod+q kill
+bindsym $mod+Shift+e exec $power
+bindsym $mod+Shift+c reload
+bindsym $mod+Escape exec swaylock -f    # not Shift+l: that is move-right ($right = l)
+bindsym $mod+y exec hyprpicker -a
+
+bindsym Print exec de-screenshot
+bindsym $mod+Shift+v exec cliphist list | wofi --dmenu | cliphist decode | wl-copy
+
+# focus
+bindsym $mod+$left  focus left
+bindsym $mod+$down  focus down
+bindsym $mod+$up    focus up
+bindsym $mod+$right focus right
+bindsym $mod+Left   focus left
+bindsym $mod+Down   focus down
+bindsym $mod+Up     focus up
+bindsym $mod+Right  focus right
+
+# move
+bindsym $mod+Shift+$left  move left
+bindsym $mod+Shift+$down  move down
+bindsym $mod+Shift+$up    move up
+bindsym $mod+Shift+$right move right
+bindsym $mod+Shift+Left   move left
+bindsym $mod+Shift+Down   move down
+bindsym $mod+Shift+Up     move up
+bindsym $mod+Shift+Right  move right
+
+# workspaces
+bindsym $mod+1 workspace number 1
+bindsym $mod+2 workspace number 2
+bindsym $mod+3 workspace number 3
+bindsym $mod+4 workspace number 4
+bindsym $mod+5 workspace number 5
+bindsym $mod+6 workspace number 6
+bindsym $mod+7 workspace number 7
+bindsym $mod+8 workspace number 8
+bindsym $mod+9 workspace number 9
+bindsym $mod+0 workspace number 10
+bindsym $mod+Shift+1 move container to workspace number 1
+bindsym $mod+Shift+2 move container to workspace number 2
+bindsym $mod+Shift+3 move container to workspace number 3
+bindsym $mod+Shift+4 move container to workspace number 4
+bindsym $mod+Shift+5 move container to workspace number 5
+bindsym $mod+Shift+6 move container to workspace number 6
+bindsym $mod+Shift+7 move container to workspace number 7
+bindsym $mod+Shift+8 move container to workspace number 8
+bindsym $mod+Shift+9 move container to workspace number 9
+bindsym $mod+Shift+0 move container to workspace number 10
+bindsym $mod+Tab workspace back_and_forth
+
+# layout
+bindsym $mod+b splith
+bindsym $mod+v splitv
+bindsym $mod+s layout stacking
+bindsym $mod+w layout tabbed
+bindsym $mod+t layout toggle split
+bindsym $mod+f fullscreen
+bindsym $mod+Shift+space floating toggle
+bindsym $mod+space focus mode_toggle
+bindsym $mod+a focus parent
+bindsym $mod+minus scratchpad show
+bindsym $mod+Shift+minus move scratchpad
+
+mode "resize" {
+    bindsym $left  resize shrink width 20px
+    bindsym $down  resize grow height 20px
+    bindsym $up    resize shrink height 20px
+    bindsym $right resize grow width 20px
+    bindsym Left   resize shrink width 20px
+    bindsym Down   resize grow height 20px
+    bindsym Up     resize shrink height 20px
+    bindsym Right  resize grow width 20px
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
+bindsym $mod+r mode "resize"
+
+# hardware keys
+bindsym --locked XF86AudioRaiseVolume exec wpctl set-volume -l 1.4 @DEFAULT_AUDIO_SINK@ 5%+
+bindsym --locked XF86AudioLowerVolume exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
+bindsym --locked XF86AudioMute exec wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+bindsym --locked XF86AudioMicMute exec wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
+bindsym --locked XF86MonBrightnessUp exec brightnessctl -e4 -n2 set 5%+
+bindsym --locked XF86MonBrightnessDown exec brightnessctl -e4 -n2 set 5%-
+bindsym --locked XF86AudioPlay exec playerctl play-pause
+bindsym --locked XF86AudioNext exec playerctl next
+bindsym --locked XF86AudioPrev exec playerctl previous
+
+include /etc/sway/config.d/*

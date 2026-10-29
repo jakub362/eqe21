@@ -1,2 +1,4 @@
 # download bundle, regenerated on demand — not worth versioning
 *.zip
+# the wallpaper is a 1.7 MB binary; it ships in the zip
+*.png

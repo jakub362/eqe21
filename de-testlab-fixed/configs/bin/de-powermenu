@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# tiny power menu that works under wofi (wayland) or rofi (x11)
+opts=$'  Shut down\n  Reboot\n  Suspend\n  Log out\n  Lock'
+if [ -n "${WAYLAND_DISPLAY:-}" ] && command -v wofi >/dev/null; then
+  sel=$(printf '%s' "$opts" | wofi --dmenu --prompt Power --width 300 --height 260 --cache-file /dev/null)
+else
+  sel=$(printf '%s' "$opts" | rofi -dmenu -p Power)
+fi
+case "$sel" in
+  *"Shut down"*) systemctl poweroff ;;
+  *Reboot*)      systemctl reboot ;;
+  *Suspend*)     systemctl suspend ;;
+  *"Log out"*)   if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then hyprctl dispatch exit
+                 elif [ -n "${SWAYSOCK:-}" ]; then swaymsg exit
+                 else echo 'awesome.quit()' | awesome-client; fi ;;
+  *Lock*)        if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+                   command -v hyprlock >/dev/null && exec hyprlock || exec swaylock -f
+                 else command -v i3lock >/dev/null && exec i3lock -c 1e1e2e; fi ;;
+esac

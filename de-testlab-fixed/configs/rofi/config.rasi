@@ -1,0 +1,13 @@
+configuration {
+  modi: "drun,run,window";
+  show-icons: true;
+  icon-theme: "Papirus-Dark";
+  display-drun: "  Apps";
+  display-run: "  Run";
+  display-window: "  Windows";
+  drun-display-format: "{name}";
+  terminal: "kitty";
+  font: "JetBrains Mono Bold 11";
+  kb-cancel: "Escape";
+}
+@theme "mocha"

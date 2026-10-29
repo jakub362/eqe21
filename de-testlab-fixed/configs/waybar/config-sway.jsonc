@@ -1,0 +1,89 @@
+{
+  "layer": "top",
+  "position": "top",
+  "height": 38,
+  "spacing": 6,
+  "margin-top": 8,
+  "margin-left": 12,
+  "margin-right": 12,
+
+  "modules-left":   ["custom/launcher", "sway/workspaces", "sway/mode"],
+  "modules-center": ["clock"],
+  "modules-right":  ["tray", "cpu", "memory", "pulseaudio", "network", "battery", "custom/power"],
+
+  "custom/launcher": {
+    "format": "",
+    "tooltip": false,
+    "on-click": "wofi --show drun"
+  },
+
+  "sway/workspaces": {
+    "format": "{icon}",
+    "disable-scroll": false,
+    "all-outputs": true,
+    "format-icons": {
+      "1": "1", "2": "2", "3": "3", "4": "4", "5": "5",
+      "6": "6", "7": "7", "8": "8", "9": "9", "10": "0",
+      "urgent": "", "default": "", "special": ""
+    },
+    "persistent-workspaces": { "*": 5 }
+  },
+
+  "sway/mode": { "format": "  {}", "tooltip": false },
+
+  "clock": {
+    "interval": 1,
+    "format": "  {:%H:%M}",
+    "format-alt": "  {:%a %d %b  %H:%M:%S}",
+    "tooltip-format": "<tt><small>{calendar}</small></tt>",
+    "calendar": {
+      "mode": "month",
+      "on-scroll": 1,
+      "format": {
+        "months":  "<span color='#cba6f7'><b>{}</b></span>",
+        "days":    "<span color='#cdd6f4'>{}</span>",
+        "weekdays":"<span color='#89b4fa'><b>{}</b></span>",
+        "today":   "<span color='#f38ba8'><b><u>{}</u></b></span>"
+      }
+    }
+  },
+
+  "cpu":    { "interval": 3, "format": "  {usage}%", "on-click": "kitty -e btop" },
+  "memory": { "interval": 5, "format": "  {percentage}%", "tooltip-format": "{used:0.1f}G / {total:0.1f}G", "on-click": "kitty -e btop" },
+
+  "pulseaudio": {
+    "format": "{icon}  {volume}%",
+    "format-muted": "  muted",
+    "format-bluetooth": "  {volume}%",
+    "format-icons": { "headphone": "", "default": ["", "", ""] },
+    "scroll-step": 5,
+    "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+    "on-click-right": "pavucontrol"
+  },
+
+  "network": {
+    "format-wifi": "  {signalStrength}%",
+    "format-ethernet": "  wired",
+    "format-disconnected": "  off",
+    "tooltip-format": "{ifname}  {ipaddr}",
+    "tooltip-format-wifi": "{essid}  {signalStrength}%\n{ipaddr}",
+    "on-click": "nm-connection-editor"
+  },
+
+  "battery": {
+    "states": { "warning": 25, "critical": 12 },
+    "format": "{icon}  {capacity}%",
+    "format-charging": "  {capacity}%",
+    "format-plugged": "  {capacity}%",
+    "format-icons": ["", "", "", "", ""],
+    "tooltip-format": "{timeTo}"
+  },
+
+  "tray": { "icon-size": 16, "spacing": 10 },
+
+  "custom/power": {
+    "format": "",
+    "tooltip": false,
+    "on-click": "de-powermenu"
+  }
+}

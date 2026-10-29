@@ -1,0 +1,28 @@
+font=JetBrains Mono 10
+background-color=#181825f2
+text-color=#cdd6f4
+border-color=#89b4fa
+progress-color=over #313244
+border-size=2
+border-radius=14
+padding=14
+margin=10
+default-timeout=6000
+icon-path=/usr/share/icons/Papirus-Dark
+max-icon-size=48
+width=380
+height=160
+anchor=top-right
+layer=overlay
+
+[urgency=low]
+border-color=#6c7086
+text-color=#a6adc8
+
+[urgency=high]
+border-color=#f38ba8
+text-color=#f38ba8
+default-timeout=0
+
+[category=screenshot]
+border-color=#a6e3a1

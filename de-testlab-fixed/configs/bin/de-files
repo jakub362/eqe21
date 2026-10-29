@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# open the first available graphical file manager
+for fm in nautilus nemo thunar dolphin pcmanfm; do
+  command -v "$fm" >/dev/null && exec "$fm" "$@"
+done
+exec kitty -e ls -l

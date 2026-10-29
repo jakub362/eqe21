@@ -1,0 +1,44 @@
+* {
+  base:     #1e1e2eE6;
+  mantle:   #181825FF;
+  surface0: #313244FF;
+  text:     #cdd6f4FF;
+  subtext:  #a6adc8FF;
+  blue:     #89b4faFF;
+  mauve:    #cba6f7FF;
+  overlay:  #6c7086FF;
+  transparent: #00000000;
+
+  background-color: transparent;
+  text-color: @text;
+}
+window {
+  transparency: "real";
+  location: center;
+  width: 620px;
+  border: 2px;
+  border-color: @blue;
+  border-radius: 18px;
+  background-color: @base;
+  padding: 16px;
+}
+mainbox { children: [ inputbar, listview ]; spacing: 12px; }
+inputbar {
+  background-color: @surface0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  spacing: 10px;
+  children: [ prompt, entry ];
+}
+prompt { text-color: @blue; }
+entry { placeholder: "Search…"; placeholder-color: @overlay; }
+listview { lines: 8; columns: 1; spacing: 4px; scrollbar: false; fixed-height: false; }
+element { padding: 8px 10px; border-radius: 12px; spacing: 10px; }
+element selected {
+  background-color: #89b4fa33;
+  border: 1px;
+  border-color: #89b4fa8C;
+  text-color: #ffffff;
+}
+element-icon { size: 26px; vertical-align: 0.5; }
+element-text { vertical-align: 0.5; }

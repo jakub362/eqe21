@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# region screenshot -> clipboard + ~/Pictures/Screenshots
+out="$HOME/Pictures/Screenshots/$(date +%Y-%m-%d_%H-%M-%S).png"
+mkdir -p "$(dirname "$out")"
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+  grim -g "$(slurp -d -b 1e1e2e80 -c 89b4faff -w 2)" "$out" || exit 1
+  wl-copy < "$out"
+else
+  maim -s -u "$out" || exit 1
+  xclip -selection clipboard -t image/png -i "$out" 2>/dev/null || true
+fi
+command -v notify-send >/dev/null && notify-send "Screenshot saved" "$out" -i "$out"
