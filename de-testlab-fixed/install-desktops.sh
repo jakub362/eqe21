@@ -496,15 +496,17 @@ fi
 # there as a ghost window you cannot click away, so a user-level override
 # confines it to KDE.  Dropping any existing Only/NotShowIn first keeps the
 # key from appearing twice.
-XVB=/etc/xdg/autostart/xwaylandvideobridge.desktop
-if [ -f "$XVB" ]; then
+# the file is named org.kde.xwaylandvideobridge.desktop on Fedora and plain
+# xwaylandvideobridge.desktop elsewhere, so match on the glob, not a path
+for XVB in /etc/xdg/autostart/*xwaylandvideobridge*.desktop; do
+  [ -f "$XVB" ] || continue
   mkdir -p "$HOME/.config/autostart"
-  sed '/^OnlyShowIn=/d; /^NotShowIn=/d' "$XVB" \
-    > "$HOME/.config/autostart/xwaylandvideobridge.desktop"
-  printf 'OnlyShowIn=KDE;\n' >> "$HOME/.config/autostart/xwaylandvideobridge.desktop"
-  record created-files.txt "$HOME/.config/autostart/xwaylandvideobridge.desktop"
+  OVERRIDE="$HOME/.config/autostart/$(basename "$XVB")"
+  sed '/^OnlyShowIn=/d; /^NotShowIn=/d' "$XVB" > "$OVERRIDE"
+  printf 'OnlyShowIn=KDE;\n' >> "$OVERRIDE"
+  record created-files.txt "$OVERRIDE"
   note "xwaylandvideobridge confined to Plasma (it ghosts in other sessions)"
-fi
+done
 # swaylock reads ~/.config/swaylock/config
 mkdir -p "$HOME/.config/swaylock"
 sed "s|@WALLPAPER@|$WALLPAPER|g" "$SRC/configs/sway/swaylock.conf" > "$HOME/.config/swaylock/config"
