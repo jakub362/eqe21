@@ -242,9 +242,10 @@ type commands at a prompt while it plays:
 
     p pause    q quit    + - speed    f 2x    s 30 seek    n next
 
-`--control auto` is the default and switches to this by itself if a whole
-video plays without a keystroke arriving — and switches back as soon as a
-key does arrive. What it learned is remembered per terminal, so a phone
+`--control auto` is the default and switches to this by itself if you had
+to press Ctrl-C during a video and not one keystroke had arrived — just
+watching without pressing anything never counts against your keys. It
+switches back as soon as a key does arrive. What it learned is remembered per terminal, so a phone
 cannot teach your desktop that keys do not work.
 
 **If you find yourself pressing Enter after every key on a machine where
