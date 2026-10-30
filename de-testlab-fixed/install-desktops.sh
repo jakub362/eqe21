@@ -489,6 +489,22 @@ DESKEOF
 else
   warn "gnome-keyring did not install — saved passwords will not persist outside Plasma"
 fi
+
+# ── keep KDE's XWayland video bridge inside Plasma ────────────────────────
+# It draws a deliberately near-invisible window so Plasma can share X11
+# windows over Wayland.  Nothing outside Plasma uses it, where it just sits
+# there as a ghost window you cannot click away, so a user-level override
+# confines it to KDE.  Dropping any existing Only/NotShowIn first keeps the
+# key from appearing twice.
+XVB=/etc/xdg/autostart/xwaylandvideobridge.desktop
+if [ -f "$XVB" ]; then
+  mkdir -p "$HOME/.config/autostart"
+  sed '/^OnlyShowIn=/d; /^NotShowIn=/d' "$XVB" \
+    > "$HOME/.config/autostart/xwaylandvideobridge.desktop"
+  printf 'OnlyShowIn=KDE;\n' >> "$HOME/.config/autostart/xwaylandvideobridge.desktop"
+  record created-files.txt "$HOME/.config/autostart/xwaylandvideobridge.desktop"
+  note "xwaylandvideobridge confined to Plasma (it ghosts in other sessions)"
+fi
 # swaylock reads ~/.config/swaylock/config
 mkdir -p "$HOME/.config/swaylock"
 sed "s|@WALLPAPER@|$WALLPAPER|g" "$SRC/configs/sway/swaylock.conf" > "$HOME/.config/swaylock/config"
