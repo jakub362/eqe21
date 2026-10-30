@@ -464,8 +464,9 @@ done
 # desktop.  gnome-keyring answers the same org.freedesktop.secrets D-Bus name
 # everywhere, so one store serves all of them.  Hyprland, SwayFX and Awesome
 # start it from their own configs; this autostart entry covers the desktops
-# that read XDG autostart (COSMIC, Budgie, ...).  NotShowIn=KDE keeps it out
-# of Plasma's way, where KWallet already answers that name.
+# that read XDG autostart, Plasma included.  For Plasma to actually use it,
+# KWallet has to be switched off (System Settings -> KDE Wallet), otherwise
+# both daemons claim the same D-Bus name and you are back to two stores.
 if command -v gnome-keyring-daemon >/dev/null; then
   mkdir -p "$HOME/.config/autostart"
   cat > "$HOME/.config/autostart/de-testlab-keyring.desktop" <<'DESKEOF'
@@ -474,12 +475,17 @@ Type=Application
 Name=Secret storage (gnome-keyring)
 Comment=Provides org.freedesktop.secrets where the session has no keyring of its own
 Exec=/usr/bin/gnome-keyring-daemon --start --components=secrets,ssh
-NotShowIn=KDE;
 X-GNOME-Autostart-Phase=Initialization
 NoDisplay=true
 DESKEOF
   record created-files.txt "$HOME/.config/autostart/de-testlab-keyring.desktop"
-  note "secret storage: gnome-keyring, autostarted in every non-Plasma session"
+  note "secret storage: gnome-keyring, autostarted in every session"
+  if [ -r "$HOME/.config/kwalletrc" ] && grep -qiE '^\s*Enabled\s*=\s*false' "$HOME/.config/kwalletrc"; then
+    note "KWallet is disabled — gnome-keyring is your only secret store"
+  else
+    warn "KWallet still looks enabled: Plasma will keep using it, not gnome-keyring"
+    note "turn it off in System Settings -> KDE Wallet to have one store everywhere"
+  fi
 else
   warn "gnome-keyring did not install — saved passwords will not persist outside Plasma"
 fi
