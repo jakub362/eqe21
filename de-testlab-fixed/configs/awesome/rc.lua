@@ -100,6 +100,8 @@ end
 run_once("picom -b --config " .. os.getenv("HOME") .. "/.config/picom/picom.conf", "picom")
 run_once("nm-applet --indicator", "nm-applet")
 run_once("/usr/libexec/polkit-kde-authentication-agent-1", "polkit-kde-aut")
+-- one secret store for every session (comm name is truncated to 15 chars)
+run_once("gnome-keyring-daemon --start --components=secrets,ssh", "gnome-keyring-d")
 awful.spawn.with_shell("xsetroot -cursor_name left_ptr 2>/dev/null; true")
 
 -- ── menu ─────────────────────────────────────────────────────

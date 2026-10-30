@@ -107,6 +107,8 @@ exec mako
 exec nm-applet --indicator
 exec wl-paste --watch cliphist store
 exec /usr/libexec/polkit-kde-authentication-agent-1
+# one secret store for every session, so saved passwords survive a desktop switch
+exec gnome-keyring-daemon --start --components=secrets,ssh
 exec swayidle -w \
     timeout 420 'swaylock -f' \
     timeout 600 'swaymsg "output * power off"' \

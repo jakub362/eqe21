@@ -38,7 +38,7 @@ DRY=0
 #   gnome, cinnamon - pull a very large pile of apps with them; removed by hand
 #   deepin          - the treeland/DDE session black-screens back to the login
 #                     manager on this machine, so it is out until that is fixed
-DESKTOPS="${DESKTOPS:-hyprland swayfx awesome budgie cosmic}"
+DESKTOPS="${DESKTOPS:-hyprland swayfx awesome cosmic}"
 want() { case " $DESKTOPS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
 mkdir -p "$STATE"/{config-backup,logs} "$HOME/.local/bin" "$HOME/.local/share/wallpapers" "$HOME/Pictures/Screenshots"
@@ -313,7 +313,8 @@ COMMON=$(avail waybar wofi rofi kitty mako swaybg swayidle swaylock wlogout \
                 xdg-desktop-portal-gtk jetbrains-mono-fonts fontawesome-6-free-fonts \
                 fontawesome-6-brands-fonts papirus-icon-theme adw-gtk3-theme \
                 lxappearance Thunar btop fastfetch jq socat ImageMagick \
-                libnotify google-noto-sans-fonts | tr '\n' ' ')
+                libnotify google-noto-sans-fonts \
+                gnome-keyring gnome-keyring-pam libsecret seahorse | tr '\n' ' ')
 step "shared tools, fonts and themes" install $COMMON
 
 if want hyprland; then
@@ -456,6 +457,32 @@ for f in "$SRC"/configs/bin/*; do
   install -m755 "$f" "$HOME/.local/bin/$(basename "$f")"
   record created-files.txt "$HOME/.local/bin/$(basename "$f")"
 done
+
+# ── one secret store for every session ────────────────────────────────────
+# Plasma keeps passwords in KWallet; the other sessions have no secret store
+# at all, so anything that saves a credential loses it the moment you switch
+# desktop.  gnome-keyring answers the same org.freedesktop.secrets D-Bus name
+# everywhere, so one store serves all of them.  Hyprland, SwayFX and Awesome
+# start it from their own configs; this autostart entry covers the desktops
+# that read XDG autostart (COSMIC, Budgie, ...).  NotShowIn=KDE keeps it out
+# of Plasma's way, where KWallet already answers that name.
+if command -v gnome-keyring-daemon >/dev/null; then
+  mkdir -p "$HOME/.config/autostart"
+  cat > "$HOME/.config/autostart/de-testlab-keyring.desktop" <<'DESKEOF'
+[Desktop Entry]
+Type=Application
+Name=Secret storage (gnome-keyring)
+Comment=Provides org.freedesktop.secrets where the session has no keyring of its own
+Exec=/usr/bin/gnome-keyring-daemon --start --components=secrets,ssh
+NotShowIn=KDE;
+X-GNOME-Autostart-Phase=Initialization
+NoDisplay=true
+DESKEOF
+  record created-files.txt "$HOME/.config/autostart/de-testlab-keyring.desktop"
+  note "secret storage: gnome-keyring, autostarted in every non-Plasma session"
+else
+  warn "gnome-keyring did not install — saved passwords will not persist outside Plasma"
+fi
 # swaylock reads ~/.config/swaylock/config
 mkdir -p "$HOME/.config/swaylock"
 sed "s|@WALLPAPER@|$WALLPAPER|g" "$SRC/configs/sway/swaylock.conf" > "$HOME/.config/swaylock/config"
