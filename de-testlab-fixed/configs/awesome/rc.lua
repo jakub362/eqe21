@@ -134,7 +134,7 @@ local function pill(w, fg, bgalpha)
     }
 end
 
-local clock = wibox.widget.textclock('<span font="JetBrains Mono Bold 10">  %H:%M</span>', 20)
+local clock = wibox.widget.textclock('<span font="JetBrains Mono Bold 10">  %H:%M</span>', 20)
 local cal = awful.widget.calendar_popup.month({
     style_month = { border_width = dpi(2), border_color = C.blue, bg_color = C.mantle, padding = dpi(8),
                     shape = function(cr,w,h) gears.shape.rounded_rect(cr,w,h,dpi(12)) end },
@@ -152,7 +152,7 @@ watch([[sh -c "grep -w cpu /proc/stat"]], 3, function(w, out)
     local total, busy = u + n + s + i, u + n + s
     if cpu.__t then
         local dt, db = total - cpu.__t, busy - cpu.__b
-        if dt > 0 then w:set_markup(string.format('<span font="JetBrains Mono Bold 10">  %d%%</span>', math.floor(db / dt * 100 + 0.5))) end
+        if dt > 0 then w:set_markup(string.format('<span font="JetBrains Mono Bold 10">  %d%%</span>', math.floor(db / dt * 100 + 0.5))) end
     end
     cpu.__t, cpu.__b = total, busy
 end, cpu)
@@ -161,7 +161,7 @@ local mem = wibox.widget.textbox()
 watch([[sh -c "free -m | awk '/Mem:/ {printf \"%d %d\", $3, $2}'"]], 5, function(w, out)
     local used, total = out:match("(%d+) (%d+)")
     if used and total then
-        w:set_markup(string.format('<span font="JetBrains Mono Bold 10">  %d%%</span>',
+        w:set_markup(string.format('<span font="JetBrains Mono Bold 10">  %d%%</span>',
             math.floor(tonumber(used) / tonumber(total) * 100 + 0.5)))
     end
 end, mem)
@@ -175,7 +175,7 @@ local function vol_update()
             local muted = out:match("MUTED") ~= nil
             local pct = v and math.floor(tonumber(v) * 100 + 0.5) or 0
             if v and tonumber(v) > 1.5 then pct = math.floor(tonumber(v) + 0.5) end
-            local icon = muted and "" or (pct > 50 and "" or (pct > 0 and "" or ""))
+            local icon = muted and "" or (pct > 50 and "" or (pct > 0 and "" or ""))
             vol:set_markup(string.format('<span font="JetBrains Mono Bold 10">%s  %d%%</span>', icon, pct))
         end)
 end
@@ -192,17 +192,17 @@ watch([[sh -c "cat /sys/class/power_supply/BAT*/capacity 2>/dev/null | head -1; 
     function(w, out)
         local cap, status = out:match("(%d+)%s*(%a*)")
         if cap then
-            local icon = (status == "Charging") and "" or ""
+            local icon = (status == "Charging") and "" or ""
             w:set_markup(string.format('<span font="JetBrains Mono Bold 10">%s  %s%%</span>', icon, cap))
         else
             w:set_markup("")
         end
     end, bat)
 
-local power_btn = wibox.widget.textbox('<span font="JetBrains Mono Bold 11" color="' .. C.red .. '"></span>')
+local power_btn = wibox.widget.textbox('<span font="JetBrains Mono Bold 11" color="' .. C.red .. '"></span>')
 power_btn:buttons(gears.table.join(awful.button({}, 1, function() awful.spawn("de-powermenu") end)))
 
-local launcher_btn = wibox.widget.textbox('<span font="JetBrains Mono Bold 13" color="' .. C.blue .. '"></span>')
+local launcher_btn = wibox.widget.textbox('<span font="JetBrains Mono Bold 13" color="' .. C.blue .. '"></span>')
 launcher_btn:buttons(gears.table.join(
     awful.button({}, 1, function() awful.spawn(launcher) end),
     awful.button({}, 3, function() mymainmenu:toggle() end)))

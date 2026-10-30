@@ -12,7 +12,7 @@
   "modules-right":  ["tray", "cpu", "memory", "pulseaudio", "network", "battery", "custom/power"],
 
   "custom/launcher": {
-    "format": "",
+    "format": "",
     "tooltip": false,
     "on-click": "wofi --show drun"
   },
@@ -24,17 +24,17 @@
     "format-icons": {
       "1": "1", "2": "2", "3": "3", "4": "4", "5": "5",
       "6": "6", "7": "7", "8": "8", "9": "9", "10": "0",
-      "urgent": "", "default": "", "special": ""
+      "urgent": "", "default": "", "special": ""
     },
     "persistent-workspaces": { "*": 5 }
   },
 
-  "sway/mode": { "format": "  {}", "tooltip": false },
+  "sway/mode": { "format": " {}", "tooltip": false },
 
   "clock": {
     "interval": 1,
-    "format": "  {:%H:%M}",
-    "format-alt": "  {:%a %d %b  %H:%M:%S}",
+    "format": "  {:%H:%M}",
+    "format-alt": "  {:%a %d %b  %H:%M:%S}",
     "tooltip-format": "<tt><small>{calendar}</small></tt>",
     "calendar": {
       "mode": "month",
@@ -48,23 +48,23 @@
     }
   },
 
-  "cpu":    { "interval": 3, "format": "  {usage}%", "on-click": "kitty -e btop" },
-  "memory": { "interval": 5, "format": "  {percentage}%", "tooltip-format": "{used:0.1f}G / {total:0.1f}G", "on-click": "kitty -e btop" },
+  "cpu":    { "interval": 3, "format": "  {usage}%", "on-click": "kitty -e btop" },
+  "memory": { "interval": 5, "format": "  {percentage}%", "tooltip-format": "{used:0.1f}G / {total:0.1f}G", "on-click": "kitty -e btop" },
 
   "pulseaudio": {
     "format": "{icon}  {volume}%",
-    "format-muted": "  muted",
-    "format-bluetooth": "  {volume}%",
-    "format-icons": { "headphone": "", "default": ["", "", ""] },
+    "format-muted": "  muted",
+    "format-bluetooth": "  {volume}%",
+    "format-icons": { "headphone": "", "default": ["", "", ""] },
     "scroll-step": 5,
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
     "on-click-right": "pavucontrol"
   },
 
   "network": {
-    "format-wifi": "  {signalStrength}%",
-    "format-ethernet": "  wired",
-    "format-disconnected": "  off",
+    "format-wifi": "  {signalStrength}%",
+    "format-ethernet": "  wired",
+    "format-disconnected": "  off",
     "tooltip-format": "{ifname}  {ipaddr}",
     "tooltip-format-wifi": "{essid}  {signalStrength}%\n{ipaddr}",
     "on-click": "nm-connection-editor"
@@ -73,16 +73,16 @@
   "battery": {
     "states": { "warning": 25, "critical": 12 },
     "format": "{icon}  {capacity}%",
-    "format-charging": "  {capacity}%",
-    "format-plugged": "  {capacity}%",
-    "format-icons": ["", "", "", "", ""],
+    "format-charging": "  {capacity}%",
+    "format-plugged": "  {capacity}%",
+    "format-icons": ["", "", "", "", ""],
     "tooltip-format": "{timeTo}"
   },
 
   "tray": { "icon-size": 16, "spacing": 10 },
 
   "custom/power": {
-    "format": "",
+    "format": "",
     "tooltip": false,
     "on-click": "de-powermenu"
   }

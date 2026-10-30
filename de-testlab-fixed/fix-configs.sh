@@ -81,6 +81,18 @@ for f in ['$HOME/.config/waybar/config.jsonc','$HOME/.config/waybar/config-sway.
     s=re.sub(r'(?m)^\s*//.*$','',open(f).read()); json.loads(s)
 print('✔ waybar configs are valid JSON')" 2>/dev/null || warn "check waybar json"
 
+# hyprpaper reads the image once at startup, so a redeployed wallpaper needs
+# the daemon restarted — reloading Hyprland does not touch it
+if pgrep -x hyprpaper >/dev/null 2>&1; then
+  say "Restarting hyprpaper so it picks up the wallpaper"
+  pkill -x hyprpaper
+  sleep 1
+  ( setsid hyprpaper >/dev/null 2>&1 & )
+  sleep 1
+  pgrep -x hyprpaper >/dev/null && printf '%s\u2714 hyprpaper running%s\n' "$c_g" "$c_0" \
+    || warn "hyprpaper did not come back — start it by hand"
+fi
+
 if command -v hyprctl >/dev/null && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
   say "Reloading Hyprland"
   hyprctl reload >/dev/null 2>&1
